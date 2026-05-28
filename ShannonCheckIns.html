@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<!--
+  App: BME Masters Summer 2026 — Operations Timeline
+  Version: 6.1
+  Changes: sticky month header, phase click scrolls to first task in phase.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BME Masters Summer 2026 — Operations Timeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ui-font: 12px;
+    --base-font: 12px;
+    --small-font: 10px;
+    --tiny-font: 9px;
+    --row-h: 32px;
+    --primary: #1F497D;
+    --primary-light: #e8f0f9;
+    --border: #dde6f0;
+    --bg: #f2f5f9;
+    --sidebar-bg: #ffffff;
+    --text: #1a2233;
+    --text-muted: #6b7a96;
+    --green: #375C23;
+    --green-light: #ecf8e0;
+  }
+
+  body {
+    font-family: 'DM Sans', "Segoe UI", Calibri, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: var(--ui-font);
+  }
+
+  /* ── HEADER ──────────────────────────────────── */
+  .header {
+    background: var(--primary);
+    color: white;
+    padding: 13px 24px 11px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    position: relative;
+    z-index: 10;
+  }
+  .header h1 { font-size: calc(var(--ui-font) + 4px); font-weight: 700; letter-spacing: -0.2px; }
+  .header p { font-size: calc(var(--ui-font) - 1px); opacity: 0.7; margin-top: 3px; }
+  .header-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+  .toggle-btn {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.22);
+    color: rgba(255,255,255,0.88);
+    padding: 5px 13px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: inherit;
+    font-weight: 500;
+    transition: all 0.15s;
+  }
+  .toggle-btn:hover { background: rgba(255,255,255,0.2); color: white; border-color: rgba(255,255,255,0.36); }
+  .toggle-btn.active { background: #cee9b0; color: #1e4010; border-color: #8cc860; font-weight: 600; }
+
+  .font-controls {
+    display: flex;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .font-btn {
+    background: none;
+    border: none;
+    border-right: 1px solid rgba(255,255,255,0.15);
+    color: rgba(255,255,255,0.85);
+    padding: 5px 11px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    font-family: inherit;
+    transition: background 0.12s;
+  }
+  .font-btn:last-child { border-right: none; }
+  .font-btn:hover { background: rgba(255,255,255,0.18); color: white; }
+
+  /* ── LEGEND ──────────────────────────────────── */
+  .legend {
+    display: flex;
+    gap: 5px;
+    padding: 7px 24px;
+    background: white;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .legend-label { font-size: 9.5px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; margin-right: 4px; }
+  .legend-pill {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 500; color: #3d4e64;
+    background: #f4f7fc;
+    border: 1px solid var(--border);
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  .legend-sep { width: 1px; height: 18px; background: var(--border); margin: 0 3px; }
+
+  /* ── LAYOUT ──────────────────────────────────── */
+  .app { display: flex; flex-direction: row; height: calc(100vh - 108px); overflow: hidden; }
+  .center-col { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+  .scroll-wrap { display: flex; flex: 1; overflow: auto; }
+  .scroll-wrap::-webkit-scrollbar { width: 7px; height: 7px; }
+  .scroll-wrap::-webkit-scrollbar-track { background: #e8eef5; }
+  .scroll-wrap::-webkit-scrollbar-thumb { background: #b0c4d8; border-radius: 4px; }
+
+  /* ── PHASE SIDEBAR ───────────────────────────── */
+  .phase-sidebar {
+    width: 192px;
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 10px 0 16px;
+    flex-shrink: 0;
+  }
+  .phase-sidebar::-webkit-scrollbar { width: 4px; }
+  .phase-sidebar::-webkit-scrollbar-thumb { background: #c8d8e8; border-radius: 3px; }
+
+  .sb-section {
+    padding: 8px 14px 3px;
+    font-size: 9px; font-weight: 700;
+    color: #a8b8cc;
+    text-transform: uppercase; letter-spacing: 1px;
+    margin-top: 6px;
+  }
+  .sb-hint {
+    padding: 1px 14px 6px;
+    font-size: 9.5px; color: #b8c8d8; line-height: 1.35;
+  }
+  .sb-item {
+    padding: 7px 14px 7px 16px;
+    font-size: calc(var(--ui-font) - 0.5px);
+    color: #4a5a70;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    line-height: 1.3;
+    transition: background 0.1s, color 0.1s;
+  }
+  .sb-item:hover { background: #f0f5fb; color: var(--primary); }
+  .sb-item.active-phase {
+    background: var(--primary-light);
+    border-left-color: var(--primary);
+    color: var(--primary);
+    font-weight: 600;
+  }
+  .sb-item.ci-item { color: var(--green); }
+  .sb-item.ci-item:hover { background: var(--green-light); }
+
+  /* ── TASK SIDEBAR ────────────────────────────── */
+  .task-sidebar {
+    background: #fafbfd;
+    border-right: 1px solid var(--border);
+    flex-shrink: 0;
+    padding: 0;
+    position: sticky; left: 0; z-index: 2;
+  }
+  .task-lane-title {
+    height: 29px;
+    display: flex; align-items: flex-end;
+    padding: 0 14px 4px;
+    font-size: 9px; font-weight: 700;
+    color: #a8b8cc;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    white-space: nowrap;
+    border-bottom: 1px solid #edf0f6;
+  }
+  .task-lane-gap { height: 12px; }
+  .task-item {
+    padding: 0 16px 0 14px;
+    font-size: calc(var(--ui-font) - 0.5px);
+    color: #3d4e64;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    white-space: nowrap;
+    display: flex; align-items: center;
+    height: var(--row-h);
+    margin-bottom: 3px;
+    box-sizing: border-box;
+    transition: background 0.1s, color 0.1s;
+    gap: 0;
+  }
+  .task-item:hover { background: #ecf2fb; color: var(--primary); }
+  .task-item.active-task {
+    background: var(--primary-light);
+    border-left-color: var(--primary);
+    color: var(--primary);
+    font-weight: 600;
+  }
+  .task-item.phase-match { background: #f2f7fd; border-left-color: #a8c4e0; }
+  .task-dl { font-size: 9px; color: #b0bed0; font-weight: 500; margin-left: auto; padding-left: 8px; flex-shrink: 0; }
+
+  /* ── STICKY MONTH HEADER ─────────────────────── */
+  .month-header-wrap {
+    display: flex;
+    border-bottom: 2px solid var(--border);
+    background: white;
+    flex-shrink: 0;
+    overflow: hidden; /* clips to sync with scroll; JS mirrors scrollLeft */
+    position: relative;
+    z-index: 3;
+  }
+  .month-header-spacer {
+    flex-shrink: 0;
+    background: #fafbfd;
+    border-right: 1px solid var(--border);
+  }
+  .month-header-cells {
+    display: flex;
+    flex: 1;
+    padding: 0 18px;
+    min-width: 820px;
+  }
+  .month-cell {
+    text-align: center;
+    font-size: 11px; font-weight: 700;
+    color: var(--primary);
+    border-left: 1px solid var(--border);
+    padding: 5px 0 4px;
+    overflow: hidden;
+    letter-spacing: 0.2px;
+  }
+
+  .gantt-wrap { flex: 1; padding: 8px 18px 24px; min-width: 820px; }
+
+  .lane-title {
+    font-size: 9px; font-weight: 700;
+    color: #a8b8cc;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    padding: 6px 0 4px;
+    border-bottom: 1px solid #edf0f6;
+    margin-bottom: 1px;
+  }
+  .g-row {
+    display: flex; align-items: center;
+    margin-bottom: 3px;
+    height: var(--row-h);
+    box-sizing: border-box;
+  }
+  .track {
+    flex: 1; position: relative;
+    height: 24px;
+    background: #e8edf5;
+    border-radius: 4px;
+    overflow: visible;
+  }
+  .track.phase-highlight {
+    background: #dce8f5;
+    outline: 2px solid rgba(31,73,125,0.18);
+    outline-offset: 1px;
+  }
+
+  .bar {
+    position: absolute;
+    height: 22px; top: 1px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex; align-items: center;
+    padding: 0 7px;
+    font-size: calc(var(--tiny-font) + 0.5px);
+    font-weight: 600;
+    color: rgba(255,255,255,0.95);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.18);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    transition: filter 0.12s, box-shadow 0.12s, transform 0.1s;
+    user-select: none;
+  }
+  .bar:hover {
+    filter: brightness(1.1);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.26);
+    transform: translateY(-0.5px);
+    z-index: 3;
+  }
+  .bar.active {
+    outline: 2.5px solid #1a1a2e;
+    outline-offset: 1px;
+    z-index: 4;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+  }
+
+  .wk-line {
+    position: absolute; top: 0; bottom: 0; width: 1px;
+    background: rgba(150,175,210,0.28);
+    pointer-events: none;
+  }
+  .today-line {
+    position: absolute; top: -8px; bottom: -4px; width: 2px;
+    background: #e53e3e;
+    pointer-events: none;
+    z-index: 6;
+    border-radius: 1px;
+  }
+  .today-tag {
+    position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
+    font-size: 8px; font-weight: 700; color: #e53e3e;
+    background: #fff5f5; border: 1px solid #fed7d7;
+    padding: 1px 5px; border-radius: 3px;
+    white-space: nowrap; pointer-events: none;
+    letter-spacing: 0.3px;
+  }
+  .ci-line {
+    position: absolute; top: -6px; bottom: -4px; width: 3px;
+    border-radius: 2px;
+    background: var(--green);
+    cursor: pointer; z-index: 5;
+    transition: background 0.1s;
+  }
+  .ci-line:hover { background: #4a8c30; }
+  .ci-label-tag {
+    position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+    font-size: 9px; font-weight: 700; color: var(--green);
+    background: var(--green-light); border: 1px solid #b0d88a;
+    padding: 1px 4px; border-radius: 3px;
+    white-space: nowrap; pointer-events: none;
+  }
+  .lane-gap { height: 12px; }
+
+  /* ── DETAIL PANEL ────────────────────────────── */
+  .detail {
+    width: 310px;
+    background: white;
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .detail::-webkit-scrollbar { width: 5px; }
+  .detail::-webkit-scrollbar-thumb { background: #c8d8e8; border-radius: 3px; }
+
+  .detail-empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%;
+    text-align: center;
+    gap: 10px; padding: 28px;
+    user-select: none;
+  }
+  .detail-empty-icon { font-size: 32px; opacity: 0.4; }
+  .detail-empty-title { font-size: 13px; font-weight: 600; color: #a8b8cc; }
+  .detail-empty-sub { font-size: 11px; color: #c0ccd8; line-height: 1.55; }
+
+  .detail-hdr {
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+  .detail-phase-tag {
+    display: inline-block;
+    font-size: 9px; font-weight: 700;
+    color: #7a8aa0;
+    text-transform: uppercase; letter-spacing: 0.7px;
+    background: #f2f6fb; border: 1px solid #dde6f0;
+    padding: 2px 8px; border-radius: 4px;
+    margin-bottom: 8px;
+  }
+  .detail-title {
+    font-size: calc(var(--ui-font) + 1.5px);
+    font-weight: 700;
+    color: var(--primary);
+    line-height: 1.35;
+    padding-right: 24px;
+  }
+  .detail-hdr.ci-hdr { background: var(--green-light); border-bottom-color: #b0d88a; }
+  .detail-hdr.ci-hdr .detail-phase-tag { background: #d4edba; color: var(--green); border-color: #9ccc60; }
+  .detail-hdr.ci-hdr .detail-title { color: var(--green); }
+
+  .close-btn {
+    position: absolute; right: 12px; top: 13px;
+    width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+    background: #f0f4f9; border: 1px solid #dde6f0; border-radius: 5px;
+    cursor: pointer; color: #7a8aa0; font-size: 15px; line-height: 1;
+    transition: all 0.12s; flex-shrink: 0;
+  }
+  .close-btn:hover { background: #dde6f0; color: #2d3748; }
+
+  .detail-body { padding: 14px 16px; }
+  .d-section { margin-bottom: 14px; }
+  .d-lbl {
+    font-size: 9px; font-weight: 700;
+    color: #a0b0c4;
+    text-transform: uppercase; letter-spacing: 0.7px;
+    margin-bottom: 5px;
+  }
+  .d-val { font-size: calc(var(--ui-font) - 0.5px); color: #2d3a4a; line-height: 1.55; }
+  .d-divider { height: 1px; background: var(--border); margin: 12px 0; }
+
+  .owner-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 12px; border-radius: 6px;
+    font-size: 11.5px; font-weight: 600;
+  }
+  .dl-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 6px;
+    font-size: 11px; font-weight: 600;
+    background: #fff8e4; color: #7a5000; border: 1px solid #f6d650;
+  }
+
+  .desc-box {
+    background: #f8fafd;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: calc(var(--ui-font) - 0.5px);
+    color: #2d3a4a;
+    line-height: 1.55;
+  }
+  .esc-label {
+    font-size: 9px; font-weight: 700;
+    color: #c07820;
+    text-transform: uppercase; letter-spacing: 0.6px;
+    margin-bottom: 5px;
+  }
+  .esc-box {
+    background: #fffaf0;
+    border: 1px solid #f5d890;
+    border-left: 3px solid #e8a820;
+    border-radius: 0 6px 6px 0;
+    padding: 9px 12px;
+    font-size: calc(var(--ui-font) - 1px);
+    color: #6a4000; line-height: 1.5;
+    font-style: italic;
+  }
+
+  .ci-good-card {
+    background: var(--green-light);
+    border: 1px solid #b0d88a;
+    border-radius: 8px; padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .ci-good-card .d-lbl { color: #4a7a1e; }
+  .ci-good-card .d-val { color: #2a4e10; }
+
+  .ci-risk-card {
+    background: #fff8f0;
+    border: 1px solid #f5c880;
+    border-radius: 8px; padding: 12px 14px;
+  }
+  .ci-risk-card .d-lbl { color: #b06010; }
+  .ci-risk-card .d-val { color: #6a3800; font-style: italic; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>BME Masters Program — Summer 2026 Operations Timeline</h1>
+    <p>May 25 – September 7, 2026 &nbsp;|&nbsp; All external email from BMEmast@bu.edu, signed with Mickey's name</p>
+  </div>
+  <div class="header-actions">
+    <div class="font-controls">
+      <button class="font-btn" id="fontDown">A−</button>
+      <button class="font-btn" id="fontUp">A+</button>
+    </div>
+    <button class="toggle-btn" id="ciBtn">show check-ins</button>
+  </div>
+</div>
+
+<div class="legend">
+  <span class="legend-label">Owner</span>
+  <div class="legend-pill"><div class="legend-dot" style="background:#2E75B6"></div>Mickey (M)</div>
+  <div class="legend-pill"><div class="legend-dot" style="background:#70AD47"></div>Bambi (B)</div>
+  <div class="legend-pill"><div class="legend-dot" style="background:#ED7D31"></div>Mario (MC)</div>
+  <div class="legend-pill"><div class="legend-dot" style="background:#7B4F9E"></div>M + B</div>
+  <div class="legend-sep"></div>
+  <div class="legend-pill" id="ci-legend" style="display:none">
+    <div class="legend-dot" style="background:#375C23;border-radius:50%;"></div>Check-in
+  </div>
+  <div class="legend-pill" id="today-legend" style="display:none">
+    <div class="legend-dot" style="background:#e53e3e;border-radius:50%;"></div>Today
+  </div>
+</div>
+
+<div class="app">
+  <div class="phase-sidebar" id="phaseSidebar"></div>
+
+  <!-- Center column: month header + scrolling gantt, no bleed into phase or detail -->
+  <div class="center-col">
+    <div class="month-header-wrap" id="monthHeaderWrap">
+      <div class="month-header-spacer" id="monthHeaderSpacer"></div>
+      <div class="month-header-cells" id="monthHeaderCells"></div>
+    </div>
+    <div class="scroll-wrap" id="scrollWrap">
+      <div class="task-sidebar" id="taskSidebar" style="position:sticky;left:0;z-index:2;"></div>
+      <div class="gantt-wrap"><div class="gantt" id="gantt"></div></div>
+    </div>
+  </div>
+
+  <div class="detail" id="detailPanel">
+    <div class="detail-empty" id="detail-empty">
+      <div class="detail-empty-icon">📋</div>
+      <div class="detail-empty-title">No task selected</div>
+      <div class="detail-empty-sub">Click any bar in the chart<br>or a task name in the sidebar</div>
+    </div>
+    <div id="detail-content" style="display:none"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var WEEKS = 17;
+  var fontSize = 12;
+  var ciOn = false;
+  var activeId = null;
+  var activePhase = null;
+
+  // Timeline start: May 25, 2026
+  var TIMELINE_START = new Date(2026, 4, 25);
+
+  var MONTHS = [
+    {label:'May', w:1}, {label:'June', w:4}, {label:'July', w:4}, {label:'August', w:5}, {label:'Sep', w:3}
+  ];
+
+  var BAR_COLOR = {m:'#2E75B6', b:'#70AD47', mc:'#ED7D31', mb:'#7B4F9E'};
+  var CHIP = {
+    m:{bg:'#ddeeff', fg:'#1a5a9e'}, b:{bg:'#e8f5d8', fg:'#4a7a2a'}, mc:{bg:'#fde8d0', fg:'#b05010'}, mb:{bg:'#ede0f7', fg:'#5a2e80'}
+  };
+  var OWNER_NAME = {m:'Mickey', b:'Bambi', mc:'Mario', mb:'Mickey + Bambi'};
+
+  var TASKS = [
+    {id:'p1bmc', stream:'BMC', label:'Process walkthrough', owner:'B', ok:'b', s:0, d:1, phase:'Phase 1 — Launch', desc:'Bambi walks Mickey through the workflow guide end to end. Mickey takes notes in his own words. By end of week, Mickey describes the full sequence from memory — why each step exists, what blocks what.', esc:'If this slips, everything downstream is shakier. Escalate to Mario.'},
+    {id:'contacts', stream:'BMC', label:'Confirm BMC contacts', owner:'M+B', ok:'mb', s:0, d:1, phase:'Phase 1 — Launch', desc:'Confirm BMC contacts unchanged: Karen Alvarado & Susan O\'Connell (HR), Janeya Charpentier (Visiting Personnel), medicalclearance@bmc.org, Ivy Tran (badge). Verify student import template is unchanged before sending anything.', esc:'If any contact has changed, update tracker and notify Mario.'},
+    {id:'tracker', stream:'BMC', label:'Stand up Google tracker', owner:'MC', ok:'mc', s:0, d:1, phase:'Phase 1 — Launch', desc:'Mario stands up the live Google tracker before handoff. Tabs: Schedule, Student tracker (survey, IP, BMC forms, medical clearance, badge, scrubs, orientation), Badge Office Request, Scrubs, Clinical Orientations, Specialty Details. Share link with BMEmast and Paula. Mickey owns and updates it from this point forward.', esc:'If tracker access issues, escalate to department IT.'},
+    {id:'mentors', stream:'BMC', label:'Confirm specialty mentors', owner:'MC', ok:'mc', s:0, d:1, phase:'Phase 1 — Launch', desc:'Mario confirms which specialty mentors are participating this year and who their current administrative contacts are. Does not assume last year\'s admin is still correct. Updates Clinical Orientations tab; flags any changes to Mickey.', esc:'Mickey cannot send scheduling emails until this is done.'},
+    {id:'roster-compile', stream:'BMC', label:'Compile student roster', owner:'M', ok:'m', s:0, d:1, phase:'Phase 1 — Launch', desc:'Compile student roster with required fields: full name, BU ID, BU email, date of birth. Bambi reviews before it goes anywhere.', esc:'If missing student data, contact students immediately.'},
+    {id:'p2bmc', stream:'BMC', label:'Roster to BMC HR', owner:'M+B', ok:'mb', s:1, d:1, phase:'Phase 2 — Roster', dl:'June 6', desc:'Send finalized roster to BMC HR (Karen Alvarado / Susan O\'Connell) as an Excel attachment — not a link. Bambi reviews before it goes out. Mickey sends from BMEmast, signed with his name. Log send date in tracker.', esc:'If BMC cannot open file, resend in alternative format immediately.'},
+    {id:'med-req', stream:'BMC', label:'Request clearance form', owner:'M+B', ok:'mb', s:2, d:1, phase:'Phase 2 — Roster', dl:'June 11', desc:'Email medicalclearance@bmc.org requesting the current year\'s medical clearance form and checklist. Do this before sending anything to students.', esc:'If no response within 3 days, follow up by phone.'},
+    {id:'sched-emails', stream:'BMC', label:'Scheduling emails to admins', owner:'M+B', ok:'mb', s:1, d:2, phase:'Phase 2 — Roster', desc:'Send scheduling emails from BMEmast to each specialty\'s administrative contact requesting a first orientation meeting the week of September 1. Suggest specific dates (Sept 1, 5, or 6). Bambi reviews the first round before Mickey sends. Mickey handles all follow-up independently. Track for each specialty: does admin control the calendar, or should the mentor be contacted directly? Update Clinical Orientations tab when anything is confirmed.', esc:'Follow up if no response within one week.'},
+    {id:'p3bmc', stream:'BMC', label:'BE695 survey + IP', owner:'MC', ok:'mc', s:3, d:1, phase:'Phase 3 — Paperwork', dl:'~June 22', desc:'Mario sends the BE695 experience survey, specialty preference request, and BU IP agreement to the full cohort. This is Mario\'s email — it sets up the team assignment process. Deadline for students: July 9.', esc:'Mario sends; Mickey tracks responses.'},
+    {id:'survey-track', stream:'BMC', label:'Track survey responses', owner:'M', ok:'m', s:3, d:3, phase:'Phase 3 — Paperwork', dl:'July 9', desc:'Track survey responses in the student tracker tab. Send one reminder before the deadline. After July 9, contact every non-responder individually — state explicitly that non-participation is not an option and the team will assign their specialty without their input.', esc:'Document every non-responder. Escalate to Mario if unresponsive after individual contact.'},
+    {id:'p4bmc', stream:'BMC', label:'Non-responder escalation', owner:'M', ok:'m', s:5, d:1, phase:'Phase 4 — Med. Clearance', dl:'July 13', desc:'Escalation pass on any remaining non-responders from the July 9 deadline. Individual contact, stated consequences, logged in tracker.', esc:'Escalate to Mario if a student remains non-responsive.'},
+    {id:'med-send', stream:'BMC', label:'Med. clearance to students', owner:'M+B', ok:'mb', s:6, d:1, phase:'Phase 4 — Med. Clearance', dl:'July 31', desc:'Send medical clearance packet to all students from BMEmast. Attach current-year form from medicalclearance@bmc.org. Instructions: email docs to medicalclearance@bmc.org AND email Mickey at BMEmast separately to confirm submission. Deadline to students: August 15.', esc:'Gating step — treat as critical.'},
+    {id:'clearance-track', stream:'BMC', label:'Track clearance status (ongoing)', owner:'M', ok:'m', s:7, d:7, phase:'Phase 4 — Med. Clearance', desc:'"Submitted documentation" and "Confirmed cleared" are two separate tracker columns. Track both. For student questions about specific test results, direct to BMC Medical Clearance — do not give guidance that could conflict with BMC\'s.', esc:'If a student cannot clear, escalate to Mario for program-path discussion.'},
+    {id:'p5bmc', stream:'BMC', label:'BMC IDs to compliance forms', owner:'M', ok:'m', s:8, d:2, phase:'Phase 5 — BMC IDs', desc:'Once BMC IDs arrive from HR, move immediately. Send each student their observer compliance forms bundled: BMC Observer form, HIPAA/Privacy form, ITS form. Include BMC Employee ID. Request packet returned as one document: BU_Observer_EmployeeID#_LastName_FirstName.', esc:'Nothing else moves cleanly until BMC IDs exist.'},
+    {id:'forms-track', stream:'BMC', label:'Track returned forms', owner:'M', ok:'m', s:8, d:4, phase:'Phase 5 — BMC IDs', desc:'Bambi tracks which students have returned completed forms in the Clinical Orientations tab and follows up on stragglers. Mickey should be able to report status at any time even though Bambi owns this lane.', esc:'Report to Mickey if stragglers are unresponsive after one follow-up.'},
+    {id:'wrong-role', stream:'BMC', label:'Watch for wrong role assignments', owner:'M', ok:'m', s:8, d:3, phase:'Phase 5 — BMC IDs', desc:'Watch for wrong Workday role assignments (Quality and Safety instead of Student Observer). If flagged, contact visitingpersonnelregistration@bmc.org and Suganya.Palanisamy@bmc.org immediately. Include: student name, BMC ID, correct role, mentor full legal name, specialty.', esc:'This error blocks scrub access and other permissions.'},
+    {id:'forms-packet', stream:'BMC', label:'Submit forms to VPR', owner:'M+B', ok:'mb', s:10, d:1, phase:'Phase 5 — BMC IDs', dl:'August 13', desc:'Submit completed onboarding forms packet to Visiting Personnel Registration as an organized folder labeled by student name. Keep a copy on the shared drive.', esc:'Email VisitingPersonnelRegistration@bmc.org. If unresponsive, contact Suganya Palanisamy.'},
+    {id:'p6bmc', stream:'BMC', label:'Straggler sweep (clearance)', owner:'M', ok:'m', s:10, d:1, phase:'Phase 6 — Badges/Scrubs', dl:'~Aug 10', desc:'Straggler sweep the week before August 15. Forward any late forms to the BMC contact. Document every exception. Students not cleared by August 15 are at serious risk of missing their orientation.', esc:'Hard deadline: Aug 15. No exceptions without Mario\'s awareness.'},
+    {id:'clearance-chase', stream:'BMC', label:'Chase clearance confirmations', owner:'M', ok:'m', s:11, d:2, phase:'Phase 6 — Badges/Scrubs', dl:'August 15', desc:'"Submitted" is not the same as "Cleared." Students must forward their BMC Occupational Health "cleared" confirmation email to BMEmast as soon as they receive it.', esc:'Verify against tracker. Do not assume sent means cleared.'},
+    {id:'badges', stream:'BMC', label:'Badge access requests', owner:'M', ok:'m', s:11, d:1, phase:'Phase 6 — Badges/Scrubs', dl:'~Aug 19', desc:'Submit badge access requests to DG-IDOffice@bmc.org. Use the Badge Office Request tab to mirror access from a prior student in the same specialty. Include per student: name, BMC ID, specialty/team, exact room access needed, prior student to mirror. Use BMC email if possible; otherwise BMEmast.', esc:'Badge office: 710 Albany St, M–F 7–4, 617-638-6879. Escalation: Ivy Tran, Ivy.Tran@bmc.org, 617-638-7196.'},
+    {id:'scrubs', stream:'BMC', label:'Scrubs setup', owner:'M+B', ok:'mb', s:11, d:2, phase:'Phase 6 — Badges/Scrubs', desc:'Mickey collects scrub sizes for all students and verifies whether each specialty uses badge-based vending or specialty login credentials. Mickey drafts scrub instructions. Bambi reviews before anything goes to students. Do not put reusable credentials in any long-term document.', esc:'Phone call often works better than email for scrub machine issues.'},
+    {id:'obs-sigs', stream:'BMC', label:'Observer form signatures', owner:'M+B', ok:'mb', s:11, d:2, phase:'Phase 6 — Badges/Scrubs', desc:'Collect and route observer forms requiring signatures. Coordinate timing with clinicians — they need to have met the student before signing government ID verification.', esc:'Do not send for signature before the clinician has met the student.'},
+    {id:'orient-emails', stream:'BMC', label:'Specialty orientation emails', owner:'M', ok:'m', s:11, d:1, phase:'Phase 6 — Badges/Scrubs', dl:'August 15', desc:'Mickey drafts the specialty-specific clinical orientation detail emails for each student team. Bambi reviews before they go out. Sent from BMEmast, signed with Mickey\'s name. Send only after all meeting date, time, room, and contact details are fully confirmed.', esc:'Mickey drafts; Mickey is accountable.'},
+    {id:'p7bmc', stream:'BMC', label:'Compliance gate sweep', owner:'M', ok:'m', s:13, d:1, phase:'Phase 7 — First Week', desc:'Line-by-line tracker review before September 1: medical clearance confirmed, trainings complete, observer forms returned, badge confirmed, scrubs accessible, orientation scheduled and attended. Every gap gets a direct follow-up.', esc:'If Mickey is improvising heavily, a gate was left too late.'},
+    {id:'badge-remind', stream:'BMC', label:'Badge pickup reminder', owner:'M', ok:'m', s:14, d:1, phase:'Phase 7 — First Week', desc:'Remind all students to pick up badges before observations begin. Students in compliance can pick up several days before class starts.', esc:'Badge office: 710 Albany St, M–F 7:00–4:00.'},
+    {id:'badge-fix', stream:'BMC', label:'Badge/access troubleshooting', owner:'M+B', ok:'mb', s:14, d:2, phase:'Phase 7 — First Week', desc:'Collect all outstanding badge and access issues into a single consolidated request to the badge office rather than individual emails.', esc:'Escalation: Ivy Tran, Ivy.Tran@bmc.org, 617-638-7196.'},
+    {id:'scrubs-issues', stream:'BMC', label:'Scrubs/locker issues', owner:'M+B', ok:'mb', s:14, d:2, phase:'Phase 7 — First Week', desc:'Route scrubs and locker issues through BMEmast. If scrub machine errors persist after a badge office reset, escalate to Janine Lipsky by phone.', esc:'Phone call is often the only resolution.'},
+    {id:'m1', stream:'Masters', label:'BMEmast coverage plan', owner:'MC', ok:'mc', s:0, d:1, phase:'Phase 1 — Setup', desc:'Confirm BMEmast inbox coverage plan for the summer. Mickey is primary; escalations go to Mario.', esc:'Mickey must be monitoring BMEmast daily throughout the summer.'},
+    {id:'website', stream:'Masters', label:'Update websites', owner:'M', ok:'m', s:3, d:1, phase:'Phase 1 — Setup', desc:'Update Masters pages, publish current handbook, confirm BMEmast is listed as primary contact on all pages.', esc:'Route any content access issues to Mario.'},
+    {id:'m3', stream:'Masters', label:'Fall reg. audit', owner:'M', ok:'m', s:3, d:2, phase:'Phase 3 — Reg. Audit', dl:'June 27', desc:'Fall 2026 registration audit: right courses, right credits, no missing thesis or project enrollment, no MS students enrolled in BE695. Flag anything wrong and correct it before registration locks.', esc:'Flag any MS students in BE695 to registrar same day.'},
+    {id:'thesis-checkin', stream:'Masters', label:'Thesis/project check-in email', owner:'M', ok:'m', s:3, d:2, phase:'Phase 3 — Reg. Audit', desc:'Contact every student enrolled in a thesis or mentored project course from BMEmast: What is your target graduation date? Is your advisor/committee confirmed? Are you on track for your next milestone? Log responses. Non-responders get a follow-up within one week.', esc:'Flag anything unusual to Mario.'},
+    {id:'m4', stream:'Masters', label:'Aug grad application confirmed', owner:'M', ok:'m', s:5, d:1, phase:'Phase 4 — Graduation', dl:'July 1', desc:'July 1 is the graduation application deadline at the GPO for August 25, 2026 graduation. Confirm every August-track student has applied. If anyone has not, escalate to Mario immediately — this is a hard gate.', esc:'Hard gate. Escalate to Mario immediately if any student has not applied.'},
+    {id:'defense-confirm', stream:'Masters', label:'Defense scheduling check', owner:'M', ok:'m', s:6, d:2, phase:'Phase 4 — Graduation', dl:'July 31', desc:'Check thesis and mentored project students targeting August graduation: defense must be scheduled (with two weeks\' advance notice and a department announcement) by July 31. If a defense is not scheduled by mid-July, flag to Mario.', esc:'Flag to Mario if not scheduled by mid-July.'},
+    {id:'mybu-feedback', stream:'Masters', label:'MyBU/Degree Progress feedback', owner:'M', ok:'m', s:7, d:2, phase:'Phase 4 — Graduation', desc:'Collect feedback from incoming students on their experience navigating MyBU and the Degree Progress tools. Log pain points in the tracker. Pass any systemic issues to Mario for follow-up with Jackie Cronin.', esc:'Pass systemic issues to Mario.'},
+    {id:'sap', stream:'Masters', label:'Financial/status escalations', owner:'M', ok:'m', s:5, d:5, phase:'Phase 4 — Graduation', desc:'Student status and financial admin escalations (SAP appeals, etc.) as they arise: route to GPO, provide advisor signature when needed, keep Mario informed.', esc:'Route to GPO. Keep Mario informed.'},
+    {id:'m5', stream:'Masters', label:'Thesis defense deadline', owner:'M', ok:'m', s:9, d:1, phase:'Phase 5 — Thesis', dl:'July 31', desc:'July 31: Thesis defense deadline for August graduation. Confirm all defending students have completed their defense and log in tracker.', esc:'If defense not completed, escalate to Mario immediately.'},
+    {id:'thesis-library', stream:'Masters', label:'Approved thesis to library', owner:'M', ok:'m', s:10, d:1, phase:'Phase 5 — Thesis', dl:'August 7', desc:'August 7: Approved thesis due to department and BU library for August graduation. Confirm receipt for each graduating student.', esc:'Escalate to Mario if a graduating student has not submitted.'},
+    {id:'m6', stream:'Masters', label:'Fall welcome packet', owner:'M', ok:'m', s:12, d:1, phase:'Phase 6 — Welcome', desc:'Send incoming Fall 2026 student welcome packet from BMEmast: handbook, registration guidance, orientation details, first points of contact.', esc:'Must go out before the semester begins.'},
+    {id:'fall-reg-check', stream:'Masters', label:'Fall reg. final check', owner:'M', ok:'m', s:12, d:2, phase:'Phase 6 — Welcome', desc:'Confirm all current students have appropriate fall registration before the semester begins. Add/drop opens September 2; catch errors before then.', esc:'Flag roster errors to registrar immediately.'},
+    {id:'be695-roster', stream:'Masters', label:'BE695 roster clean', owner:'M', ok:'m', s:14, d:1, phase:'Phase 7 — First Week', desc:'Confirm BE695 roster is clean: no MS students enrolled in BE695. Submit correction to registrar immediately if needed.', esc:'Submit correction to registrar same day if MS students are found.'},
+    {id:'addrop', stream:'Masters', label:'First-week reg. questions', owner:'M', ok:'m', s:14, d:2, phase:'Phase 7 — First Week', desc:'Handle first-week registration questions from BMEmast. Route add/drop requests to the registrar appropriately.', esc:'Route to registrar. Keep Mario informed of unusual situations.'}
+  ];
+
+  var CHECKINS = [
+    {num:1, week:2, lbl:'C1', full:'Check-in 1 (~Jun 8)',
+     check:'Core setup is in place. Mario has stood up the tracker, and Mickey can explain the BMC workflow clearly enough to use it without needing Bambi to drive each next step.',
+     gap:'Tracker exists, but Mickey still cannot run the process from it independently. Bambi is still initiating too many next actions.'},
+    {num:23, week:7, lbl:'C2–3', full:'Merged Check-in 2–3 (~Jul 17)',
+     check:'Survey follow-up is complete, August-track thesis students are identified, and the medical clearance process is underway with tracker columns clearly separating submitted from cleared.',
+     gap:'Non-responders are still loose, August-track thesis students are not clearly identified, or the clearance tracker is still blending submitted with cleared.'},
+    {num:4, week:11, lbl:'C4', full:'Check-in 4 (~Aug 14)',
+     check:'Mickey gives a clean per-student status report from one look at the tracker. Badge requests submitted. Straggler sweep done. Bambi running her lane; Mickey running his.',
+     gap:'Bambi still holding things together. Mickey reactive. Compliance gate feels uncertain.'},
+    {num:5, week:15, lbl:'C5', full:'Check-in 5 (~Sep 5)',
+     check:'Students are badged, cleared, scrubbed, and in orientation. Mickey can account for every exception. No surprises.',
+     gap:'First week chaotic. Mickey improvising. Bambi still catching things.'}
+  ];
+
+  function pct(week) { return (week / WEEKS * 100).toFixed(4) + '%'; }
+
+  function todayWeekOffset() {
+    var ms = new Date() - TIMELINE_START;
+    return ms / (7 * 24 * 60 * 60 * 1000);
+  }
+
+  function setFont() {
+    document.documentElement.style.setProperty('--ui-font', fontSize + 'px');
+    document.documentElement.style.setProperty('--base-font', fontSize + 'px');
+    document.documentElement.style.setProperty('--small-font', Math.max(9, fontSize - 2) + 'px');
+    document.documentElement.style.setProperty('--tiny-font', Math.max(8, fontSize - 3) + 'px');
+  }
+
+  function weekLines(n) {
+    var out = '';
+    for (var w = 1; w < n; w++) out += '<div class="wk-line" style="left:' + pct(w) + '"></div>';
+    return out;
+  }
+
+  function todayMarker(showTag) {
+    var tw = todayWeekOffset();
+    if (tw < 0 || tw >= WEEKS) return '';
+    var tag = showTag ? '<div class="today-tag">Today</div>' : '';
+    return '<div class="today-line" style="left:' + pct(tw) + '">' + tag + '</div>';
+  }
+
+  function ciMarkers() {
+    if (!ciOn) return '';
+    return CHECKINS.map(ci =>
+      '<div class="ci-line" style="left:' + pct(ci.week) + '" data-ci="' + ci.num + '"><div class="ci-label-tag">' + ci.lbl + '</div></div>'
+    ).join('');
+  }
+
+  function phaseList() {
+    return {
+      BMC:['Phase 1 — Launch','Phase 2 — Roster','Phase 3 — Paperwork','Phase 4 — Med. Clearance','Phase 5 — BMC IDs','Phase 6 — Badges/Scrubs','Phase 7 — First Week'],
+      Masters:['Phase 1 — Setup','Phase 3 — Reg. Audit','Phase 4 — Graduation','Phase 5 — Thesis','Phase 6 — Welcome','Phase 7 — First Week']
+    };
+  }
+
+  function renderPhaseSidebar() {
+    var phases = phaseList();
+    var html = '<div class="sb-section">BMC Stream</div><div class="sb-hint">Click to filter by phase</div>';
+    phases.BMC.forEach(function(p) {
+      html += '<div class="sb-item ' + (activePhase === p ? 'active-phase' : '') + '" data-phase="' + p + '">' + p + '</div>';
+    });
+    html += '<div class="sb-section" style="margin-top:10px;">Masters Stream</div>';
+    phases.Masters.forEach(function(p) {
+      html += '<div class="sb-item ' + (activePhase === p ? 'active-phase' : '') + '" data-phase="' + p + '">' + p + '</div>';
+    });
+    if (ciOn) {
+      html += '<div class="sb-section" style="margin-top:10px;">Check-ins</div>';
+      CHECKINS.forEach(function(ci) {
+        html += '<div class="sb-item ci-item" data-ci="' + ci.num + '">' + ci.full + '</div>';
+      });
+    }
+    document.getElementById('phaseSidebar').innerHTML = html;
+  }
+
+  function renderTaskSidebar() {
+    var bmc = TASKS.filter(function(t) { return t.stream === 'BMC'; });
+    var masters = TASKS.filter(function(t) { return t.stream === 'Masters'; });
+
+    function taskItemHTML(t) {
+      var dlSpan = t.dl ? '<span class="task-dl">' + t.dl + '</span>' : '';
+      var classes = 'task-item' +
+        (activeId === t.id ? ' active-task' : '') +
+        (activePhase === t.phase ? ' phase-match' : '');
+      return '<div class="' + classes + '" data-taskjump="' + t.id + '">' + t.label + dlSpan + '</div>';
+    }
+
+    var html = '';
+    html += '<div class="task-lane-title">BMC Stream</div>';
+    bmc.forEach(function(t) { html += taskItemHTML(t); });
+    html += '<div class="task-lane-gap"></div>';
+    html += '<div class="task-lane-title">Masters Stream</div>';
+    masters.forEach(function(t) { html += taskItemHTML(t); });
+    document.getElementById('taskSidebar').innerHTML = html;
+  }
+
+  function buildMonthHeader() {
+    // Match spacer width to task sidebar
+    var ts = document.getElementById('taskSidebar');
+    var spacer = document.getElementById('monthHeaderSpacer');
+    var phaseSidebar = document.getElementById('phaseSidebar');
+    spacer.style.width = (ts.offsetWidth || 0) + 'px';
+
+    var cells = MONTHS.map(function(m) {
+      return '<div class="month-cell" style="width:' + (m.w / WEEKS * 100).toFixed(4) + '%">' + m.label + '</div>';
+    }).join('');
+    document.getElementById('monthHeaderCells').innerHTML = cells;
+
+    // Sync horizontal scroll
+    var sw = document.getElementById('scrollWrap');
+    var hdr = document.getElementById('monthHeaderCells');
+    // Remove old listener if any
+    if (sw._monthScrollHandler) sw.removeEventListener('scroll', sw._monthScrollHandler);
+    sw._monthScrollHandler = function() { hdr.style.transform = 'translateX(-' + sw.scrollLeft + 'px)'; };
+    sw.addEventListener('scroll', sw._monthScrollHandler, {passive: true});
+    // Apply immediately in case already scrolled
+    hdr.style.transform = 'translateX(-' + sw.scrollLeft + 'px)';
+  }
+
+  function buildGantt() {
+    var bmc = TASKS.filter(function(t) { return t.stream === 'BMC'; });
+    var masters = TASKS.filter(function(t) { return t.stream === 'Masters'; });
+    var tw = todayWeekOffset();
+    var showToday = tw >= 0 && tw < WEEKS;
+
+    function rowHTML(t, idx, stream) {
+      var left = pct(t.s), width = pct(t.d), color = BAR_COLOR[t.ok] || '#888';
+      var isActive = activeId === t.id;
+      var phaseHL = activePhase === t.phase ? ' phase-highlight' : '';
+      var showTodayTag = (stream === 'BMC' && idx === 0);
+      var markers = weekLines(WEEKS) + todayMarker(showTodayTag) + ciMarkers();
+      return '<div class="g-row" id="row-' + t.id + '">' +
+        '<div class="track' + phaseHL + '">' + markers +
+        '<div class="bar' + (isActive ? ' active' : '') + '" style="left:' + left + ';width:' + width + ';background:' + color + '" data-task="' + t.id + '" title="' + t.label + '">' + t.label + '</div>' +
+        '</div></div>';
+    }
+
+    var html = '';
+    html += '<div class="lane-title">BMC Clinical Placement Stream</div>';
+    html += bmc.map(function(t, idx) { return rowHTML(t, idx, 'BMC'); }).join('');
+    html += '<div class="lane-gap"></div>';
+    html += '<div class="lane-title">Masters Academic Stream</div>';
+    html += masters.map(function(t, idx) { return rowHTML(t, idx, 'Masters'); }).join('');
+    document.getElementById('gantt').innerHTML = html;
+
+    // Show today legend pill only if today is in range
+    document.getElementById('today-legend').style.display = showToday ? 'flex' : 'none';
+
+    renderPhaseSidebar();
+    renderTaskSidebar();
+    // Build sticky header after sidebar renders (to get correct spacer width)
+    requestAnimationFrame(buildMonthHeader);
+  }
+
+  function openTask(id) {
+    var t = TASKS.find(function(x) { return x.id === id; });
+    if (!t) return;
+    activeId = id;
+    buildGantt();
+    var chip = CHIP[t.ok] || CHIP.m;
+    var ownerName = OWNER_NAME[t.ok] || t.owner;
+    var dlRow = t.dl
+      ? '<div class="d-section"><div class="d-lbl">Deadline</div><div class="d-val"><span class="dl-chip">📅 ' + t.dl + '</span></div></div>'
+      : '';
+    var body =
+      '<div class="d-section"><div class="d-lbl">Owner</div><div class="d-val"><span class="owner-pill" style="background:' + chip.bg + ';color:' + chip.fg + '">' + ownerName + '</span></div></div>' +
+      dlRow +
+      '<div class="d-divider"></div>' +
+      '<div class="d-section"><div class="d-lbl">What to do</div><div class="desc-box">' + t.desc + '</div></div>' +
+      '<div class="d-section"><div class="esc-label">Escalation / Note</div><div class="esc-box">' + t.esc + '</div></div>';
+    showDetail(t.phase, t.label, false, body);
+  }
+
+  function openCI(num) {
+    var ci = CHECKINS.find(function(x) { return x.num === num; });
+    if (!ci) return;
+    activeId = null;
+    buildGantt();
+    var body =
+      '<div class="ci-good-card"><div class="d-lbl">What good looks like</div><div class="d-val" style="margin-top:5px">' + ci.check + '</div></div>' +
+      '<div class="ci-risk-card"><div class="d-lbl">What would worry us</div><div class="d-val" style="margin-top:5px">' + ci.gap + '</div></div>';
+    showDetail('Check-in', ci.full, true, body);
+  }
+
+  function showDetail(phase, title, isCI, body) {
+    document.getElementById('detail-empty').style.display = 'none';
+    var dc = document.getElementById('detail-content');
+    dc.style.display = 'block';
+    dc.innerHTML =
+      '<div class="detail-hdr' + (isCI ? ' ci-hdr' : '') + '">' +
+        '<div class="close-btn" id="closeBtn">&#215;</div>' +
+        '<div class="detail-phase-tag">' + phase + '</div>' +
+        '<div class="detail-title">' + title + '</div>' +
+      '</div>' +
+      '<div class="detail-body">' + body + '</div>';
+  }
+
+  function closeDetail() {
+    activeId = null;
+    buildGantt();
+    document.getElementById('detail-empty').style.display = '';
+    document.getElementById('detail-content').style.display = 'none';
+  }
+
+  function toggleCI() {
+    ciOn = !ciOn;
+    var btn = document.getElementById('ciBtn');
+    btn.textContent = ciOn ? 'hide check-ins' : 'show check-ins';
+    btn.classList.toggle('active', ciOn);
+    document.getElementById('ci-legend').style.display = ciOn ? 'flex' : 'none';
+    buildGantt();
+  }
+
+  function jumpTo(id) {
+    var el = document.getElementById('row-' + id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function jumpToPhase(phaseName) {
+    if (!phaseName) return;
+    var first = TASKS.find(function(t) { return t.phase === phaseName; });
+    if (!first) return;
+    var el = document.getElementById('row-' + first.id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  document.addEventListener('click', function(e) {
+    if (e.target.id === 'closeBtn' || e.target.classList.contains('close-btn')) { closeDetail(); return; }
+    if (e.target.id === 'ciBtn') { toggleCI(); return; }
+    if (e.target.id === 'fontUp') { fontSize = Math.min(18, fontSize + 1); setFont(); return; }
+    if (e.target.id === 'fontDown') { fontSize = Math.max(10, fontSize - 1); setFont(); return; }
+    var bar = e.target.closest('[data-task]');
+    if (bar) { openTask(bar.dataset.task); return; }
+    var taskJump = e.target.closest('[data-taskjump]');
+    if (taskJump) { jumpTo(taskJump.dataset.taskjump); openTask(taskJump.dataset.taskjump); return; }
+    var phase = e.target.closest('[data-phase]');
+    if (phase) {
+      var newPhase = activePhase === phase.dataset.phase ? null : phase.dataset.phase;
+      activePhase = newPhase;
+      buildGantt();
+      if (newPhase) requestAnimationFrame(function() { jumpToPhase(newPhase); });
+      return;
+    }
+    var ci = e.target.closest('[data-ci]');
+    if (ci) { openCI(parseInt(ci.dataset.ci, 10)); return; }
+  });
+
+  window.addEventListener('resize', function() { requestAnimationFrame(buildMonthHeader); });
+
+  setFont();
+  buildGantt();
+})();
+</script>
+</body>
+</html>
